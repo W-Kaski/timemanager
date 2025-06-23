@@ -1,4 +1,5 @@
 import tkinter as tk
+from cgitb import small
 from tkinter import ttk, messagebox
 import time
 import random
@@ -20,11 +21,12 @@ class TimeManagerGUI:
         self.major_cycle_end_sound = os.path.join(self.sound_dir, "major_cycle_end.mp3")
 
         # 状态变量
-        self.is_running = False
         self.current_thread = None
-        self.remaining_time = 0
         self.current_cycle_type = ""
 
+        self.current_state = ""
+        self.remaining_small_cycles = 0
+        self.remaining_time = 0
         self.create_widgets()
 
     def create_widgets(self):
@@ -34,12 +36,12 @@ class TimeManagerGUI:
 
         ttk.Label(major_frame, text="学习时间（分钟）:").grid(row=0, column=0, sticky="w")
         self.study_time = ttk.Entry(major_frame, width=10)
-        self.study_time.insert(0, "90")
+        self.study_time.insert(0, ".4")
         self.study_time.grid(row=0, column=1, padx=5)
 
         ttk.Label(major_frame, text="休息时间（分钟）:").grid(row=1, column=0, sticky="w")
         self.break_time = ttk.Entry(major_frame, width=10)
-        self.break_time.insert(0, "20")
+        self.break_time.insert(0, ".2")
         self.break_time.grid(row=1, column=1, padx=5)
 
         # 小周期设置框架
@@ -48,12 +50,12 @@ class TimeManagerGUI:
 
         ttk.Label(small_frame, text="学习时间范围（分钟）:").grid(row=0, column=0, sticky="w")
         self.min_study = ttk.Entry(small_frame, width=5)
-        self.min_study.insert(0, "4")
+        self.min_study.insert(0, ".1")
         self.min_study.grid(row=0, column=1, padx=5)
 
         ttk.Label(small_frame, text="至").grid(row=0, column=2)
         self.max_study = ttk.Entry(small_frame, width=5)
-        self.max_study.insert(0, "6")
+        self.max_study.insert(0, ".1")
         self.max_study.grid(row=0, column=3, padx=5)
 
         ttk.Label(small_frame, text="休息时间（秒）:").grid(row=1, column=0, sticky="w")
@@ -95,130 +97,183 @@ class TimeManagerGUI:
         """更新时间显示"""
         minutes, secs = divmod(seconds, 60)
         if is_major_cycle:
-            cycle_type = "学习" if self.current_cycle_type == "学习" else "休息"
-            self.time_label.config(text=f"{cycle_type}周期 进度: {minutes:02d}分{secs:02d}秒")
+            self.time_label.config(text=f"{self.current_cycle_type}周期 进度: {minutes:02d}分{secs:02d}秒")
         else:
             if self.current_cycle_type == "学习":
                 self.status_label.config(text=f"学习小周期剩余时间: {minutes:02d}分{secs:02d}秒")
 
     def start(self):
         """开始计时"""
-        if not self.is_running:
-            self.is_running = True
-            self.start_button.config(state="disabled")
-            self.pause_button.config(state="normal")
+        self.current_state = "running"
+        self.start_button.config(state="disabled")
+        self.pause_button.config(state="normal")
 
-            if not self.current_thread or not self.current_thread.is_alive():
-                self.current_thread = threading.Thread(target=self.run_cycles)
-                self.current_thread.daemon = True
-                self.current_thread.start()
+        self.run_cycles()
 
     def pause(self):
         """暂停计时"""
-        self.is_running = False
+        self.current_state = "pause"
         self.start_button.config(state="normal")
         self.pause_button.config(state="disabled")
 
     def reset(self):
         """重置所有状态"""
-        self.is_running = False
+        self.current_state = ""
         self.start_button.config(state="normal")
         self.pause_button.config(state="disabled")
         self.time_label.config(text="待开始")
         self.status_label.config(text="")
+        # 重置所有计时相关的状态
         self.remaining_time = 0
+        self.remaining_small_cycles = 0
+        self.current_cycle_type = ""
 
     def run_cycles(self):
         """运行周期"""
-        while True:
-            try:
-                # 学习周期
-                study_mins = float(self.study_time.get())
-                self.run_study_cycle(study_mins * 60)
+        def run_timer():
+            while self.current_state == "running":
+                try:
+                    # 学习周期
+                    study_mins = float(self.study_time.get())
+                    self.run_study_cycle(study_mins * 60)
 
-                if not self.is_running:
+                    if self.current_state =="":
+                        return
+
+                    # 学习周期结束后，如果程序仍在运行，则开始休息周期
+                    if self.current_state == "running":
+                        self.play_sound(self.major_cycle_end_sound)
+                        # 休息周期
+                        break_mins = float(self.break_time.get())
+                        self.run_break_cycle(break_mins * 60, True)
+                        
+                        if self.current_state == "":
+                            return
+                            
+                        # 休息周期结束后重新开始
+                        if self.current_state == "running":
+                            self.play_sound(self.major_cycle_end_sound)
+                            continue
+
+                except ValueError as e:
+                    messagebox.showerror("错误", "请输入有效的数字！")
+                    self.reset()
+                    break
+                except Exception as e:
+                    messagebox.showerror("错误", f"发生错误: {str(e)}")
+                    self.reset()
                     break
 
-                # 休息周期
-                break_mins = float(self.break_time.get())
-                self.run_break_cycle(break_mins * 60)
-
-                if not self.is_running:
-                    break
-
-            except ValueError as e:
-                messagebox.showerror("错误", "请输入有效的数字！")
-                self.reset()
-                break
-            except Exception as e:
-                messagebox.showerror("错误", f"发生错误: {str(e)}")
-                self.reset()
-                break
+        # 在新线程中运行计时器
+        self.current_thread = threading.Thread(target=run_timer)
+        self.current_thread.daemon = True
+        self.current_thread.start()
 
     def run_study_cycle(self, duration):
         """运行学习周期"""
         self.current_cycle_type = "学习"
-        start_time = time.time()
 
-        while self.is_running:
+        if self.remaining_small_cycles != 0:
+            study_time = self.remaining_small_cycles
+            duration = self.remaining_time
+        else:
             try:
                 min_study = float(self.min_study.get())
                 max_study = float(self.max_study.get())
-                small_break = float(self.small_break.get())
             except ValueError:
                 messagebox.showerror("错误", "请输入有效的数字！")
                 self.reset()
                 return
 
             study_time = random.randint(int(min_study * 60), int(max_study * 60))
-            
             if study_time > duration:
                 study_time = duration
+            self.remaining_small_cycles = study_time
 
-            # 学习时间倒计时
-            for i in range(study_time, 0, -1):
-                if not self.is_running:
-                    return
-                remaining = duration - (time.time() - start_time)
-                if remaining > 0:
-                    self.update_time_display(int(remaining), True)
-                self.update_time_display(i, False)
-                time.sleep(1)
-
-            elapsed_time = time.time() - start_time
-
-            if elapsed_time + small_break <= duration and self.is_running:
-                self.play_sound(self.start_break_sound)
-                self.status_label.config(text="休息中 ^_^")
-                
-                # 休息时间倒计时
-                for i in range(int(small_break), 0, -1):
-                    if not self.is_running:
-                        return
-                    remaining = duration - (time.time() - start_time)
-                    if remaining > 0:
-                        self.update_time_display(int(remaining), True)
-                    time.sleep(1)
-                
-                self.play_sound(self.end_break_sound)
-
-        if self.is_running:
-            self.play_sound(self.major_cycle_end_sound)
-
-    def run_break_cycle(self, duration):
-        """运行休息周期"""
-        self.current_cycle_type = "休息"
-        start_time = time.time()
-        self.status_label.config(text="休息中 ^_^")
-        
-        for i in range(int(duration), 0, -1):
-            if not self.is_running:
+        # 学习时间倒计时
+        for i in range(0, study_time + 1, 1):  # 修改为倒计时方式，包含0秒
+            if self.current_state != "running":
                 return
-            self.update_time_display(i, True)
+            self.remaining_time = duration - i
+            self.remaining_small_cycles = study_time - i
+            print(self.remaining_small_cycles)
+            self.update_time_display(int(self.remaining_time), True)
+            self.update_time_display(self.remaining_small_cycles, False)
             time.sleep(1)
 
-        if self.is_running:
-            self.play_sound(self.major_cycle_end_sound)
+        if self.current_state != "running":
+            return
+        if self.remaining_time != 0:
+            self.play_sound(self.start_break_sound)
+
+            try:
+                small_break = float(self.small_break.get())
+                if small_break > self.remaining_time:
+                    small_break = self.remaining_time
+            except ValueError:
+                messagebox.showerror("错误", "请输入有效的数字！")
+                self.reset()
+                return
+
+            # 保存当前状态
+            current_remaining_time = self.remaining_time
+            
+            # 运行小休息
+            self.run_break_cycle(small_break, False)
+            
+            # 如果是暂停状态，保持剩余时间
+            if self.current_state != "running":
+                self.remaining_time = current_remaining_time
+                return
+                
+            # 如果还有剩余时间且不是暂停状态，播放结束休息音效
+            if self.remaining_time != 0:
+                self.play_sound(self.end_break_sound)
+
+    def run_break_cycle(self, duration, is_major_cycle):
+        """运行休息周期"""
+        self.current_cycle_type = "休息"
+        self.status_label.config(text="休息中 ^_^")
+        
+        if is_major_cycle:  # 大休息周期
+            if self.remaining_time != 0:
+                try:
+                    duration = self.remaining_time
+                    small_break = self.small_break.get()
+                except ValueError:
+                    messagebox.showerror("错误", "请输入有效的数字！")
+                    self.reset()
+                    return
+            else:
+                try:
+                    duration = float(self.break_time.get()) * 60  # 转换为秒
+                    small_break = 0
+                except ValueError:
+                    messagebox.showerror("错误", "请输入有效的数字！")
+                    self.reset()
+                    return
+
+            # 休息时间倒计时
+            for i in range(0, int(duration) + 1, 1):
+                if self.current_state != "running":
+                    return
+                self.remaining_time = duration - i
+                self.update_time_display(int(self.remaining_time), True)
+                time.sleep(1)
+        else:  # 小休息周期
+            # 休息时间倒计时
+            for i in range(0, int(duration) + 1, 1):
+                if self.current_state != "running":
+                    return
+                self.update_time_display(int(duration - i), False)
+                time.sleep(1)
+
+
+
+
+
+
+
 
 
 def main():
