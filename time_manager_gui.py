@@ -38,12 +38,12 @@ class TimeManagerGUI:
 
         ttk.Label(major_frame, text="学习时间（分钟）:").grid(row=0, column=0, sticky="w")
         self.study_time = ttk.Entry(major_frame, width=10)
-        self.study_time.insert(0, ".4")
+        self.study_time.insert(0, "90")
         self.study_time.grid(row=0, column=1, padx=5)
 
         ttk.Label(major_frame, text="休息时间（分钟）:").grid(row=1, column=0, sticky="w")
         self.break_time = ttk.Entry(major_frame, width=10)
-        self.break_time.insert(0, ".2")
+        self.break_time.insert(0, "20")
         self.break_time.grid(row=1, column=1, padx=5)
 
         # 小周期设置框架
@@ -52,12 +52,12 @@ class TimeManagerGUI:
 
         ttk.Label(small_frame, text="学习时间范围（分钟）:").grid(row=0, column=0, sticky="w")
         self.min_study = ttk.Entry(small_frame, width=5)
-        self.min_study.insert(0, ".1")
+        self.min_study.insert(0, "5")
         self.min_study.grid(row=0, column=1, padx=5)
 
         ttk.Label(small_frame, text="至").grid(row=0, column=2)
         self.max_study = ttk.Entry(small_frame, width=5)
-        self.max_study.insert(0, ".1")
+        self.max_study.insert(0, "10")
         self.max_study.grid(row=0, column=3, padx=5)
 
         ttk.Label(small_frame, text="休息时间（秒）:").grid(row=1, column=0, sticky="w")
@@ -177,26 +177,25 @@ class TimeManagerGUI:
         """运行学习周期"""
         self.current_cycle_type = "学习"
 
-        if self.remaining_time != 0 :
-            duration = self.remaining_time
+        if self.remaining_time != 0:
+            duration = int(self.remaining_time)  # 确保是整数
             if self.remaining_small_cycles == 0 and self.current_study_type:
-                min_study = float(self.min_study.get())
-                max_study = float(self.max_study.get())
-                small_cycle_time = random.randint(int(min_study * 60), int(max_study * 60))
+                min_study = int(float(self.min_study.get()) * 60)  # 直接转换为秒数的整数
+                max_study = int(float(self.max_study.get()) * 60)  # 直接转换为秒数的整数
+                small_cycle_time = random.randint(min_study, max_study)
 
             elif self.remaining_small_cycles == 0 and not self.current_study_type:
-                small_cycle_time = float(self.small_break.get())
+                small_cycle_time = int(float(self.small_break.get()))  # 转换为整数
             else:
-                small_cycle_time = self.remaining_small_cycles
+                small_cycle_time = int(self.remaining_small_cycles)  # 确保是整数
         else:
-            min_study = float(self.min_study.get())
-            max_study = float(self.max_study.get())
-            small_cycle_time = random.randint(int(min_study * 60), int(max_study * 60))
+            min_study = int(float(self.min_study.get()) * 60)  # 直接转换为秒数的整数
+            max_study = int(float(self.max_study.get()) * 60)  # 直接转换为秒数的整数
+            small_cycle_time = random.randint(min_study, max_study)
             self.current_study_type = True
+
         if small_cycle_time > duration:
             small_cycle_time = duration
-
-
 
         if self.current_study_type:
             # 学习时间倒计时
