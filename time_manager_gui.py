@@ -136,24 +136,27 @@ class TimeManagerGUI:
         def run_timer():
             while self.current_state != "":
                 try:
-                    if self.current_cycle_type == "学习" and self.current_state != "pause":
+                    if self.current_state == "pause":
+                        time.sleep(0.1)  # 暂停状态下休眠100ms
+                        continue
+                        
+                    elif self.current_cycle_type == "学习":
                         # 学习周期
                         study_mins = float(self.study_time.get())
                         self.run_study_cycle(study_mins * 60)
 
                         if self.current_state == "":
                             return
-                    elif self.current_cycle_type == "休息" and self.current_state != "pause":
+                    elif self.current_cycle_type == "休息":
                         # 休息周期
                         break_mins = float(self.break_time.get())
                         self.run_break_cycle(break_mins * 60)
 
                         if self.current_state == "":
                             return
-                    if self.remaining_time == 0:
+                    # 只在正常完成周期时播放音效，而不是在重置后
+                    if self.remaining_time == 0 and self.current_state == "running":
                         self.play_sound(self.major_cycle_end_sound)
-
-
 
                 except ValueError as e:
                     messagebox.showerror("错误", "请输入有效的数字！")
