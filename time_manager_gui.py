@@ -12,7 +12,7 @@ import os
 class TimeManagerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("时间管理工具")
+        self.root.title("时间管理大师")
         self.root.geometry("600x400")
 
         # 初始化声音文件路径
@@ -102,7 +102,8 @@ class TimeManagerGUI:
             self.time_label.config(text=f"{self.current_cycle_type}周期 进度: {minutes:02d}分{secs:02d}秒")
         else:
             if self.current_cycle_type == "学习":
-                self.status_label.config(text=f"学习小周期剩余时间: {minutes:02d}分{secs:02d}秒")
+                cycle_type = "学习" if self.current_study_type else "休息"
+                self.status_label.config(text=f"{cycle_type}小周期剩余时间: {minutes:02d}分{secs:02d}秒")
 
     def start(self):
         """开始计时"""
@@ -191,6 +192,7 @@ class TimeManagerGUI:
             min_study = float(self.min_study.get())
             max_study = float(self.max_study.get())
             small_cycle_time = random.randint(int(min_study * 60), int(max_study * 60))
+            self.current_study_type = True
         if small_cycle_time > duration:
             small_cycle_time = duration
 
@@ -211,14 +213,7 @@ class TimeManagerGUI:
                 self.update_time_display(int(self.remaining_time), True)
                 self.update_time_display(self.remaining_small_cycles, False)
                 time.sleep(1)
-                print(self.remaining_time)
 
-            if self.current_state == "pause":
-                self.current_study_type = True
-                self.current_cycle_type = "学习"
-                return
-            elif self.current_state == "":
-                return
             # 播放开始休息音效
             if self.remaining_time != 0:
                 self.play_sound(self.start_break_sound)
@@ -241,23 +236,19 @@ class TimeManagerGUI:
                 self.update_time_display(int(self.remaining_small_cycles), False)
                 time.sleep(1)
 
-            if self.current_state == "pause":
-                self.current_study_type = False
-                self.current_cycle_type = "学习"
-                return
-            elif self.current_state == "":
-                return
 
-            # 播放开始休息音效
+            # 播放结束休息音效
             if self.remaining_time != 0:
                 self.play_sound(self.end_break_sound)
                 self.current_study_type = True
 
-        if self.remaining_time == 0:
+        if self.remaining_time == 0 :
             self.current_cycle_type = "休息"
 
     def run_break_cycle(self, duration):
         """运行休息周期"""
+
+        self.status_label.config(text="")  # 清空小周期状态显示
 
         if self.remaining_time != 0:
             try:
